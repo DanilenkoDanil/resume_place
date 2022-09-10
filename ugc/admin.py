@@ -1,36 +1,38 @@
 from django.contrib import admin
 
-from .forms import ProfileForm, ServiceForm
-from .models import Profile, UsersMessage, BotMessage, BotButton, Orders, Service
+from .models import Profile, BotMessage, BotButton, Resume, WorkType, WorkTypeResume, Order
 
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'external_id', 'name', 'balance', 'referral_count', 'referral_balance', 'ref', 'status')
-    form = ProfileForm 
-
-
-@admin.register(UsersMessage)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'profile', 'text', 'created_at')
+    list_display = ('id', 'external_id', 'name', 'employee')
 
 
 @admin.register(BotMessage)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'button', 'text')
+class BotMessageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'text', 'text_eng')
 
 
 @admin.register(BotButton)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'number', 'text', 'status')
+class BotButtonAdmin(admin.ModelAdmin):
+    list_display = ('id', 'text', 'text_eng', 'status')
 
 
-@admin.register(Orders)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'platform', 'type', 'service', 'count', 'user', 'status')
+@admin.register(WorkType)
+class WorkTypeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'type_name', 'subtype_status', 'relates_to')
 
 
-@admin.register(Service)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('platform', 'type', 'service', 'product_id', 'price', 'min_count', 'max_count', 'link_form')
-    form = ServiceForm
+@admin.register(Resume)
+class ResumeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'content', 'status')
+
+
+@admin.register(WorkTypeResume)
+class ResumeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'resume', 'work_type', 'content')
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'date')
