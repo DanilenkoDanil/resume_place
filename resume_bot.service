@@ -8,9 +8,7 @@ Group=resume
 
 WorkingDirectory=/home/resume/resume_place/
 Environment="PYTHONPATH=/home/resume/resume_place/"
-ExecStart=/home/resume/resume_place/venv/bin/python /home/resume/resume_place/manage.py bot
+ExecStart=/home/resume/resume_place/venv/bin/python3.9 /home/resume/resume_place/manage.py bot
 
 [Install]
 WantedBy=multi-user.target
-
-sudo cp /home/resume/resume_place/resume_bot.service /etc/systemd/system/resume_bot.service
