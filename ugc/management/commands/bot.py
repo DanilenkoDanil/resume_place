@@ -1,12 +1,7 @@
-import time
-from asgiref.sync import sync_to_async
 from django.core.management.base import BaseCommand
 from django.conf import settings
-from ugc.models import BotMessage, BotButton, Profile
-import secrets
-import asyncio
-import datetime
-import json
+from django.core.files import File
+from ugc.models import BotMessage, BotButton, Profile, Resume, WorkType, WorkTypeResume, Order
 import os
 
 from aiogram import Bot, types
@@ -24,46 +19,42 @@ os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
 
 def get_button(button_id: int):
-    return BotButton.objects.filter(number=button_id)[0]
+    return BotButton.objects.filter(id=button_id)[0]
 
 
-def get_service_info(service: str, type_order: str):
-    return Service.objects.filter(platform=service, type=type_order)[0]
-
-
-def get_message(button: BotButton):
-    return BotMessage.objects.filter(button=button)[0]
+def get_message(message_id: int):
+    return BotMessage.objects.filter(id=message_id)[0]
 
 
 def get_profile(telegram_id: int):
-    return Profile.objects.filter(external_id=telegram_id)[0]
+    result = Profile.objects.filter(external_id=telegram_id)
+    if len(result) == 0:
+        return False
+    else:
+        return result[0]
 
 
-def get_active_orders(profile: Profile):
-    return Orders.objects.filter(user=profile, status='В работе')
+def clear_work_type(user: Profile):
+    resume = get_resume(user)
+    result = WorkTypeResume.objects.filter(resume=resume)
+    for i in result:
+        i.delete()
 
 
-def get_archive_orders(profile: Profile):
-    return Orders.objects.filter(user=profile)
+def get_work_type(name: str):
+    result = WorkType.objects.filter(type_name=name)
+    if len(result) == 0:
+        return False
+    else:
+        return result[0]
 
 
-def save_message(func):
-    async def wrapper(*args, **kwargs):
-        message = args[0]
-        p, _ = Profile.objects.get_or_create(
-            external_id=message.from_user.id,
-            defaults={
-                'name': message.from_user.username,
-                'status': 1
-            }
-        )
-        UsersMessage(
-            profile=p,
-            text=message.text
-        ).save()
-        print(kwargs)
-        await func(*args, **kwargs)
-    return wrapper
+def get_resume(user: Profile):
+    result = Resume.objects.filter(user=user)
+    if len(result) == 0:
+        return False
+    else:
+        return result[0]
 
 
 def check_button(func):
@@ -83,18 +74,55 @@ def create_keyboard(list_id: list):
     return kb
 
 
+def inline_keyboard_work(search=False, new=True):
+    if search is True:
+        type_work = 'search'
+    elif new is True:
+        type_work = 'new'
+    else:
+        type_work = 'work_type'
+    kb = InlineKeyboardMarkup()
+    work_list = WorkType.objects.filter(relates_to=None)
+    for work in work_list:
+        inline_btn = InlineKeyboardButton(work.type_name, callback_data=f'{type_work} {work.type_name}')
+        kb.add(inline_btn)
+    return kb
+
+
 token = settings.TOKEN
 
 bot = Bot(token=token)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-start_kb = create_keyboard([11, 12, 13, 14])
-orders_kb = create_keyboard([121, 122, 500])
-personal_area_kb = create_keyboard([131, 132, 500])
-service_kb = create_keyboard([112, 113, 114, 500])
-vk = create_keyboard([1131, 1132, 500])
-tik_tok = create_keyboard([1141, 500])
-instagram = create_keyboard([1121, 1122, 1123, 500])
+no_employee = get_button(1)
+employee = get_button(2)
+my_work = get_button(3)
+new_work = get_button(4)
+resume_create = get_button(5)
+employee_profile = get_button(6)
+cancel = get_button(8)
+notification_setting = get_button(7)
+notification_on = get_button(9)
+notification_off = get_button(10)
+work_type_final = get_button(11)
+rating = get_button(12)
+language = get_button(13)
+city = get_button(14)
+contacts = get_button(15)
+change_contacts = get_button(18)
+category = get_button(17)
+change_category = get_button(21)
+photo = get_button(16)
+change_photo = get_button(22)
+create_order = get_button(23)
+
+
+class Form(StatesGroup):
+    input_resume_text = State()
+    input_work_type = State()
+    input_contacts = State()
+    input_photo = State()
+    input_order_content = State()
 
 
 async def shutdown(dispatcher: Dispatcher):
@@ -102,337 +130,497 @@ async def shutdown(dispatcher: Dispatcher):
     await dispatcher.storage.wait_closed()
 
 
-help_button = get_button(14)
-account_button = get_button(13)
-promotion_button = get_button(11)
-back_button = get_button(500)
-add_balance = get_button(131)
-ref_button = get_button(132)
-
-orders_button = get_button(12)
-orders_active_button = get_button(121)
-orders_archive_button = get_button(122)
-
-instagram_button = get_button(112)
-instagram_sub_button = get_button(1121)
-instagram_story_button = get_button(1122)
-instagram_like_button = get_button(1123)
-
-tik_tok_button = get_button(114)
-tik_tok_sub_button = get_button(1141)
-
-vk_button = get_button(113)
-vk_sub_button = get_button(1131)
-vk_like_button = get_button(1132)
-
-
-# States
-class Form(StatesGroup):
-    input_amount_service = State()
-    input_amount_add_balance = State()
-    input_link = State()
-    check = State()
-
-
 @dp.message_handler(commands=['start'], state="*")
-@save_message
 async def start_message(message: types.Message, state: FSMContext, **kwargs):
-    button = get_button(0)
-    message_text = get_message(button).text
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=start_kb)
+    msg = get_message(1)
+    first_kb = create_keyboard([1, 2])
+    await bot.send_message(message.from_user.id, msg.text, reply_markup=first_kb, parse_mode='Markdown')
 
 
-# Помощь
-@dp.message_handler(lambda message: help_button.text in message.text, state="*")
-@check_button
-@save_message
+@dp.message_handler(lambda message: cancel.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(help_button.number)
-    message_text = get_message(button).text
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=start_kb)
-
-
-# Назад
-@dp.message_handler(lambda message: back_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    await state.finish()
-    await bot.send_message(message.from_user.id, 'Назад', parse_mode='Markdown', reply_markup=start_kb)
-
-
-# Личный кабинет
-@dp.message_handler(lambda message: account_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    user_profile = get_profile(message.from_user.id)
-    message_text = f"""
-    Здраствуйте, {user_profile.name}!
-Ваш баланс - {user_profile.balance} рублей
-Количество рефералов - {user_profile.referral_count}
-Доход от рефералов - {user_profile.referral_balance} рублей
-    """
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=personal_area_kb)
-
-
-@dp.message_handler(lambda message: add_balance.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(add_balance.number)
-    message_text = get_message(button).text
-    await Form.input_amount_add_balance.set()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=personal_area_kb)
-
-
-@dp.message_handler(state=Form.input_amount_add_balance)
-@save_message
-async def help_message(message: types.Message, state: FSMContext, raw_state):
-    try:
-        amount = int(message.text)
-
-        pay = qiwi.create_pay(amount)
-
-        inline_qiwi_btn = InlineKeyboardButton('QIWI', url=pay['link'])
-        inline_kb = InlineKeyboardMarkup().add(inline_qiwi_btn)
-
-        await bot.send_message(message.from_user.id, 'Отлично, переходите к оплате!', parse_mode='Markdown', reply_markup=inline_kb)
-        await state.finish()
-        timer = time.time()
-        while True:
-            await asyncio.sleep(20)
-            if qiwi.check_pay(pay['build']):
-                user_profile = get_profile(message.from_user.id)
-                user_profile.balance = user_profile.balance + amount
-                user_profile.save()
-                break
-            if time.time() - timer > 3000:
-                break
-
-    except ValueError:
-        await bot.send_message(message.from_user.id, 'Введите целое число!', parse_mode='Markdown',
-                               reply_markup=personal_area_kb)
-
-
-@dp.message_handler(lambda message: ref_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    user_profile = get_profile(message.from_user.id)
-    button = get_button(ref_button.number)
-    message_text = get_message(button).text.replace('REF', user_profile.ref)
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=personal_area_kb)
-
-
-# Ветка Заказов
-@dp.message_handler(lambda message: orders_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(orders_button.number)
-    message_text = get_message(button).text
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=orders_kb)
-
-
-# Активные заказы
-@dp.message_handler(lambda message: orders_active_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    user_profile = get_profile(message.from_user.id)
-    for i in get_active_orders(user_profile):
-        order_message = f'{i.platform} - {i.type} - {i.count}'
-        await bot.send_message(message.from_user.id, order_message, parse_mode='Markdown', reply_markup=orders_kb)
-    await state.finish()
-
-
-# Все заказы
-@dp.message_handler(lambda message: orders_archive_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    user_profile = get_profile(message.from_user.id)
-    for i in get_active_orders(user_profile):
-        order_message = f'{i.platform} - {i.type} - {i.count} - {i.status}'
-        await bot.send_message(message.from_user.id, order_message, parse_mode='Markdown', reply_markup=orders_kb)
-    await state.finish()
-# Конец ветки Заказов
-
-
-# Ветка Раскрутки
-@dp.message_handler(lambda message: promotion_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(promotion_button.number)
-    message_text = get_message(button).text
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=service_kb)
-
-
-# Раскутка Ветка Инстаграмма
-@dp.message_handler(lambda message: instagram_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(promotion_button.number)
-    message_text = get_message(button).text
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=instagram)
-
-
-@dp.message_handler(lambda message: instagram_sub_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(instagram_sub_button.number)
-    info = get_service_info("Instagram", 'Подписчики')
-    message_text = get_message(button).text.replace('PRICE', f'{info.price*1000}').\
-        replace('MIN', f'{info.min_count}').replace('MAX', f'{info.max_count}')
-    await Form.input_amount_service.set()
-    await state.update_data(info=info)
-    await state.update_data(keyboard=instagram)
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=instagram)
-
-
-@dp.message_handler(lambda message: instagram_like_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(instagram_sub_button.number)
-    info = get_service_info("Instagram", 'Лайки')
-    message_text = get_message(button).text.replace('PRICE', f'{info.price*1000}').\
-        replace('MIN', f'{info.min_count}').replace('MAX', f'{info.max_count}')
-    await Form.input_amount_service.set()
-    await state.update_data(info=info)
-    await state.update_data(keyboard=instagram)
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=instagram)
-
-
-@dp.message_handler(lambda message: instagram_story_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(instagram_sub_button.number)
-    info = get_service_info("Instagram", 'Просмотры сторис')
-    message_text = get_message(button).text.replace('PRICE', f'{info.price*1000}').\
-        replace('MIN', f'{info.min_count}').replace('MAX', f'{info.max_count}')
-    await Form.input_amount_service.set()
-    await state.update_data(info=info)
-    await state.update_data(keyboard=instagram)
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=instagram)
-
-# Раскутка Конец Ветки Инстаграмма
-
-
-# Раскутка Ветка Тик-Ток
-@dp.message_handler(lambda message: tik_tok_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(promotion_button.number)
-    message_text = get_message(button).text
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=tik_tok)
-
-
-@dp.message_handler(lambda message: tik_tok_sub_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(instagram_sub_button.number)
-    info = get_service_info("Instagram", 'Подписчики')
-    message_text = get_message(button).text.replace('PRICE', f'{info.price*1000}').\
-        replace('MIN', f'{info.min_count}').replace('MAX', f'{info.max_count}')
-    await Form.input_amount_service.set()
-    await state.update_data(info=info)
-    await state.update_data(keyboard=instagram)
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=instagram)
-
-# Раскутка Конец Ветки Тик-Тока
-
-
-# Раскутка Ветка ВКонтакте
-@dp.message_handler(lambda message: vk_button.text in message.text, state="*")
-@check_button
-@save_message
-async def help_message(message: types.Message, state: FSMContext):
-    button = get_button(promotion_button.number)
-    message_text = get_message(button).text
-    await state.finish()
-    await bot.send_message(message.from_user.id, message_text, parse_mode='Markdown', reply_markup=vk)
-# Раскутка Конец Ветки ВКонтакте
-
-# Общий функционал для ветки Раскрутка
-
-
-@dp.message_handler(state=Form.input_amount_service)
-@save_message
-async def help_message(message: types.Message, state: FSMContext, raw_state):
-    try:
-        user_data = await state.get_data()
-        info = user_data['info']
-        amount = int(message.text.replace(' ', ''))
-        if amount > int(info.max_count):
-            await bot.send_message(message.from_user.id, f'Слишко много! Максимум - {info.max_count}',
-                                   parse_mode='Markdown')
-        elif amount < int(info.min_count):
-            await bot.send_message(message.from_user.id, f'Слишко мало! Минимум - {info.min_count}',
-                                   parse_mode='Markdown')
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        msg = get_message(1)
+        first_kb = create_keyboard([1, 2])
+        await bot.send_message(message.from_user.id, msg.text, reply_markup=first_kb, parse_mode='Markdown')
+    else:
+        if profile.employee is True:
+            keyboard = create_keyboard([5, 6, 7])
+            await bot.send_message(message.from_user.id, 'Вы работник', parse_mode='Markdown', reply_markup=keyboard)
         else:
-            await bot.send_message(message.from_user.id, f'Отлично! Введите ссылку в формате {info.link_form}!',
-                                   parse_mode='Markdown')
-            await state.update_data(amount=amount)
-            await Form.input_link.set()
-    except ValueError:
-        await bot.send_message(message.from_user.id, 'Введите целое число!', parse_mode='Markdown',
-                               reply_markup=personal_area_kb)
+            keyboard = create_keyboard([3, 4, 23])
+            await bot.send_message(message.from_user.id, 'Вы ищите работника', parse_mode='Markdown', reply_markup=keyboard)
 
 
-@dp.message_handler(state=Form.input_link)
-@save_message
+@dp.message_handler(lambda message: no_employee.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        Profile.objects.create(external_id=message.from_user.id, employee=True, name=message.from_user.username)
+    msg = get_message(3)
+    keyboard = create_keyboard([3, 4, 23])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: new_work.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    msg = get_message(18)
+    kb = inline_keyboard_work(search=True)
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=kb)
+
+
+@dp.callback_query_handler(lambda c: 'search' in c.data)
+async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    print('sda')
+    await bot.answer_callback_query(callback_query.id)
+    work_type = str(callback_query.data).split(' ')[1]
+    print(work_type)
+    obj = WorkType.objects.filter(type_name=work_type)[0]
+    print(obj)
+    if obj.subtype_status is True:
+        kb = InlineKeyboardMarkup()
+        print('2')
+        for work in WorkType.objects.filter(relates_to=obj):
+            print('+')
+            inline_btn = InlineKeyboardButton(work.type_name, callback_data=f'search {work.type_name}')
+            kb.add(inline_btn)
+        await bot.send_message(callback_query.from_user.id, 'Уточните...', reply_markup=kb)
+        return
+    resumes = WorkTypeResume.objects.filter(work_type=obj)
+    msg = get_message(19)
+    await bot.send_message(callback_query.from_user.id, msg.text)
+    for i in resumes:
+        final_message = i.resume.content + '\n\n\n' + i.resume.user.contacts
+        if i.resume.user.photo is None:
+            await bot.send_message(callback_query.from_user.id, final_message)
+        else:
+            await bot.send_photo(callback_query.from_user.id, open(i.resume.user.photo.path, 'rb'), caption=final_message,
+                                 parse_mode='Markdown')
+
+
+@dp.message_handler(lambda message: create_order.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    msg = get_message(26)
+    kb = inline_keyboard_work(new=True)
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=kb)
+
+
+@dp.callback_query_handler(lambda c: 'new' in c.data)
+async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    print('sda')
+    await bot.answer_callback_query(callback_query.id)
+    work_type = str(callback_query.data).split(' ')[1]
+    print(work_type)
+    obj = WorkType.objects.filter(type_name=work_type)[0]
+    print(obj)
+    if obj.subtype_status is True:
+        kb = InlineKeyboardMarkup()
+        print('2')
+        for work in WorkType.objects.filter(relates_to=obj):
+            print('+')
+            inline_btn = InlineKeyboardButton(work.type_name, callback_data=f'new {work.type_name}')
+            kb.add(inline_btn)
+        await bot.send_message(callback_query.from_user.id, 'Уточните...', reply_markup=kb)
+        return
+    await state.update_data(work_type=obj)
+    msg = get_message(27)
+    await Form.input_order_content.set()
+    await bot.send_message(callback_query.from_user.id, msg.text)
+
+
+@dp.message_handler(state=Form.input_order_content)
 async def help_message(message: types.Message, state: FSMContext, raw_state):
-
+    profile = get_profile(message.from_user.id)
     user_data = await state.get_data()
-    info = user_data['info']
-    if info.link_form in message.text:
-        await bot.send_message(message.from_user.id, f'Всё отлично! Услуга будет стоить {info.price*info["amount"]}.'
-                                                     f' Эта сумма будет списана с вашего счёта. Вы уверены?',
-                                                     parse_mode='Markdown', reply_markup=user_data['keyboard'])
-        await state.update_data(link=message.text.strip(' '))
-        await Form.check.set()
+    work_type = user_data['work_type']
+    msg = get_message(28)
+    await state.finish()
+    Order.objects.create(user=profile, content=message.text)
+    keyboard = create_keyboard([3, 4, 23])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+    work_type_resumes = WorkTypeResume.objects.filter(work_type=work_type)
+    for work_type_resume in work_type_resumes:
+        resume = work_type_resume.resume
+        if resume.user.notification is True:
+            full_text = message.text + "\n\n" + '@' + str(message.from_user.username)
+            await bot.send_message(resume.user.external_id, full_text)
+
+
+@dp.message_handler(lambda message: employee.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        Profile.objects.create(external_id=message.from_user.id, employee=True, name=message.from_user.username)
+    msg = get_message(2)
+    keyboard = create_keyboard([5, 6, 7])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: no_employee.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is not False:
+        await bot.send_message(message.from_user.id, 'Вы уже зарегестрированы!', parse_mode='Markdown')
+    msg = get_message(3)
+    Profile.objects.create(external_id=message.from_user.id, employee=False, name=message.from_user.username)
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown')
+
+
+@dp.message_handler(lambda message: notification_setting.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(6)
+    keyboard = create_keyboard([9, 10, 8])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: notification_on.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    profile.notification = True
+    profile.save()
+    msg = get_message(7)
+    if profile.employee is True:
+        keyboard = create_keyboard([5, 6, 7])
     else:
-        await bot.send_message(message.from_user.id, f'Попробуйте ещё! Нет тот формат ссылки. ссылка должна быть'
-                                                     f' в форме {info.link_form}', parse_mode='Markdown',
-                                                     reply_markup=user_data['keyboard'])
+        keyboard = create_keyboard([3, 4])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
 
 
-@dp.message_handler(state=Form.check)
-@save_message
+@dp.message_handler(lambda message: notification_off.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    profile.notification = False
+    profile.save()
+    msg = get_message(8)
+    if profile.employee is True:
+        keyboard = create_keyboard([5, 6, 7])
+    else:
+        keyboard = create_keyboard([3, 4])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: resume_create.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    await Form.input_resume_text.set()
+    msg = get_message(5)
+    keyboard = create_keyboard([8])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(state=Form.input_resume_text)
 async def help_message(message: types.Message, state: FSMContext, raw_state):
-
-    user_data = await state.get_data()
-    info = user_data['info']
-    if info.link_form in message.text:
-        await bot.send_message(message.from_user.id, 'Всё отлично! Начинаем услугу!', parse_mode='Markdown',
-                               reply_markup=user_data['keyboard'])
-        await state.update_data(link=message.text.strip(' '))
+    profile = get_profile(message.from_user.id)
+    resume = get_resume(profile)
+    if resume is False:
+        Resume.objects.create(user=profile, content=message.text)
     else:
-        await bot.send_message(message.from_user.id, f'Попробуйте ещё! Нет тот формат ссылки. ссылка должна быть в форме'
-                                                     f' {info.link_form}', parse_mode='Markdown',
-                                                     reply_markup=user_data['keyboard'])
+        resume.content = message.text
+        resume.status = False
+        resume.save()
+    msg = get_message(9)
+    kb = inline_keyboard_work()
+    clear_work_type(profile)
+    await state.finish()
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=kb)
 
 
+@dp.callback_query_handler(lambda c: 'work_type' in c.data)
+async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    print('sda')
+    await bot.answer_callback_query(callback_query.id)
+    work_type = str(callback_query.data).split(' ')[1]
+    print(work_type)
+    obj = WorkType.objects.filter(type_name=work_type)[0]
+    print(obj)
+    if obj.subtype_status is True:
+        kb = InlineKeyboardMarkup()
+        print('2')
+        for work in WorkType.objects.filter(relates_to=obj):
+            print('+')
+            inline_btn = InlineKeyboardButton(work.type_name, callback_data=f'work_type {work.type_name}')
+            kb.add(inline_btn)
+        await bot.send_message(callback_query.from_user.id, 'Уточните...', reply_markup=kb)
+        return
+    user_data = await state.get_data()
+    if user_data.get('work_type') is None:
+        result = [work_type]
+    else:
+        if work_type not in user_data['work_type']:
+            result = user_data['work_type']
+            result.append(work_type)
+        else:
+            result = user_data['work_type']
+    await state.update_data(work_type=result)
+    user_data = await state.get_data()
+    print(user_data['work_type'])
+    keyboard = create_keyboard([11])
+    profile = get_profile(callback_query.from_user.id)
+    resume = get_resume(profile)
+    work_type = get_work_type(work_type)
+    WorkTypeResume.objects.create(work_type=work_type, resume=resume, content='')
+    await bot.send_message(callback_query.from_user.id, 'Принято', reply_markup=keyboard)
 
-# Конец общего функционала для ветки Раскрутка
 
-# Конец ветки Раскрутки
+@dp.message_handler(lambda message: work_type_final.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    user_data = await state.get_data()
+    print(user_data['work_type'])
+    msg = get_message(10)
+    keyboard = create_keyboard([5, 6, 7])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: employee_profile.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(11)
+    keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: rating.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(11)
+    keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
+    await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
+                           parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: rating.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(11)
+    keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
+    await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
+                           parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: language.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(11)
+    keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
+    await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
+                           parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: city.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(11)
+    keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
+    await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
+                           parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: contacts.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(12).text
+    if profile.contacts != "":
+        msg = msg + f'\n\n {profile.contacts}'
+    else:
+        msg = get_message(13).text
+    keyboard = create_keyboard([18, 8])
+    await bot.send_message(message.from_user.id, msg,
+                           parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: change_contacts.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    msg = get_message(14).text
+    await Form.input_contacts.set()
+    await bot.send_message(message.from_user.id, msg, parse_mode='Markdown')
+
+
+@dp.message_handler(state=Form.input_contacts)
+async def help_message(message: types.Message, state: FSMContext, raw_state):
+    profile = get_profile(message.from_user.id)
+    msg = get_message(15)
+    profile.contacts = message.text
+    profile.save()
+    await state.finish()
+    keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: category.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    resume = get_resume(profile)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    result = WorkTypeResume.objects.filter(resume=resume)
+    if len(result) == 0:
+        keyboard = create_keyboard([21, 8])
+        msg = get_message(17).text
+        await bot.send_message(message.from_user.id, msg, parse_mode='Markdown', reply_markup=keyboard)
+    else:
+        keyboard = create_keyboard([21, 8])
+        msg = get_message(16).text
+        await bot.send_message(message.from_user.id, msg, parse_mode='Markdown', reply_markup=keyboard)
+        for i in result:
+            await bot.send_message(message.from_user.id, str(i.work_type.type_name), parse_mode='Markdown')
+
+
+@dp.message_handler(lambda message: category.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    resume = get_resume(profile)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    result = WorkTypeResume.objects.filter(resume=resume)
+    if len(result) == 0:
+        keyboard = create_keyboard([21, 8])
+        msg = get_message(17).text
+        await bot.send_message(message.from_user.id, msg, parse_mode='Markdown', reply_markup=keyboard)
+    else:
+        keyboard = create_keyboard([21, 8])
+        msg = get_message(16).text
+        await bot.send_message(message.from_user.id, msg, parse_mode='Markdown', reply_markup=keyboard)
+        for i in result:
+            await bot.send_message(message.from_user.id, str(i.work_type.type_name), parse_mode='Markdown')
+
+
+@dp.message_handler(lambda message: change_category.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+    if profile.employee is False:
+        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
+        return
+
+    msg = get_message(9).text
+    kb = inline_keyboard_work()
+    clear_work_type(profile)
+    await state.finish()
+    await bot.send_message(message.from_user.id, msg, parse_mode='Markdown', reply_markup=kb)
+
+
+@dp.message_handler(lambda message: photo.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    keyboard = create_keyboard([22, 8])
+    if profile.photo is None:
+        msg = get_message(20).text
+        await bot.send_message(message.from_user.id, msg, parse_mode='Markdown', reply_markup=keyboard)
+        return
+    msg = get_message(21).text
+    await bot.send_photo(message.from_user.id, open(profile.photo.path, 'rb'), caption=msg, parse_mode='Markdown', reply_markup=keyboard)
+
+#     await Form.input_photo.set()
+
+
+@dp.message_handler(lambda message: change_photo.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    msg = get_message(22).text
+    await Form.input_photo.set()
+    await bot.send_message(message.from_user.id, msg, parse_mode='Markdown')
+
+
+@dp.message_handler(state=Form.input_photo, content_types=['document', 'photo'])
+async def help_message(message: types.Message, state: FSMContext, raw_state):
+    profile = get_profile(message.from_user.id)
+    print('!!!!!!!!!!!!!!!!!!')
+    if message.document is None:
+        await bot.download_file_by_id(message.photo[-1].file_id, 'test.png')
+        profile.photo = File(open('test.png', 'rb'))
+        profile.save()
+    else:
+        if str(message.document.file_name).split('.')[-1] in ['jpg', 'png']:
+            await bot.download_file_by_id(message.document.file_id, 'test.png')
+            profile.photo = File(open('test.png', 'rb'))
+            profile.save()
+        else:
+            msg = get_message(25)
+            await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown')
+            return
+    msg = get_message(23)
+    await state.finish()
+    keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
 
 
 class Command(BaseCommand):
