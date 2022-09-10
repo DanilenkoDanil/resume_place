@@ -1,0 +1,14 @@
+[Unit]
+Description=Telegram Bot
+After=network.target
+
+[Service]
+User=vladimir
+Group=vladimir
+
+WorkingDirectory=/home/resume/resume_place/
+Environment="PYTHONPATH=/home/resume/resume_place/"
+ExecStart=/home/resume/resume_place/venv/bin/python /home/resume/resume_place/manage.py bot
+
+[Install]
+WantedBy=multi-user.target
