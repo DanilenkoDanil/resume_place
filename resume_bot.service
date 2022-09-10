@@ -3,8 +3,8 @@ Description=Telegram Bot
 After=network.target
 
 [Service]
-User=vladimir
-Group=vladimir
+User=resume
+Group=resume
 
 WorkingDirectory=/home/resume/resume_place/
 Environment="PYTHONPATH=/home/resume/resume_place/"
@@ -12,3 +12,5 @@ ExecStart=/home/resume/resume_place/venv/bin/python /home/resume/resume_place/ma
 
 [Install]
 WantedBy=multi-user.target
+
+sudo cp /home/resume/resume_place/resume_bot.service /etc/systemd/system/resume_bot.service
