@@ -8,7 +8,6 @@ import asyncio
 import datetime
 import json
 import os
-import ugc.qiwi as qiwi
 
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
