@@ -74,7 +74,7 @@ def create_keyboard(list_id: list):
     return kb
 
 
-def inline_keyboard_work(search=False, new=True):
+def inline_keyboard_work(search=False, new=False):
     if search is True:
         type_work = 'search'
     elif new is True:
@@ -132,6 +132,9 @@ async def shutdown(dispatcher: Dispatcher):
 
 @dp.message_handler(commands=['start'], state="*")
 async def start_message(message: types.Message, state: FSMContext, **kwargs):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        Profile.objects.create(external_id=message.from_user.id, employee=True, name=message.from_user.username)
     msg = get_message(1)
     first_kb = create_keyboard([1, 2])
     await bot.send_message(message.from_user.id, msg.text, reply_markup=first_kb, parse_mode='Markdown')
@@ -140,24 +143,14 @@ async def start_message(message: types.Message, state: FSMContext, **kwargs):
 @dp.message_handler(lambda message: cancel.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        msg = get_message(1)
-        first_kb = create_keyboard([1, 2])
-        await bot.send_message(message.from_user.id, msg.text, reply_markup=first_kb, parse_mode='Markdown')
-    else:
-        if profile.employee is True:
-            keyboard = create_keyboard([5, 6, 7])
-            await bot.send_message(message.from_user.id, 'Вы работник', parse_mode='Markdown', reply_markup=keyboard)
-        else:
-            keyboard = create_keyboard([3, 4, 23])
-            await bot.send_message(message.from_user.id, 'Вы ищите работника', parse_mode='Markdown', reply_markup=keyboard)
+    msg = get_message(1)
+    first_kb = create_keyboard([1, 2])
+    await bot.send_message(message.from_user.id, msg.text, reply_markup=first_kb, parse_mode='Markdown')
 
 
 @dp.message_handler(lambda message: no_employee.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        Profile.objects.create(external_id=message.from_user.id, employee=True, name=message.from_user.username)
     msg = get_message(3)
     keyboard = create_keyboard([3, 4, 23])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
@@ -252,8 +245,6 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
 @dp.message_handler(lambda message: employee.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        Profile.objects.create(external_id=message.from_user.id, employee=True, name=message.from_user.username)
     msg = get_message(2)
     keyboard = create_keyboard([5, 6, 7])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
@@ -272,9 +263,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: notification_setting.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     msg = get_message(6)
     keyboard = create_keyboard([9, 10, 8])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
@@ -283,9 +271,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: notification_on.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     profile.notification = True
     profile.save()
     msg = get_message(7)
@@ -299,9 +284,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: notification_off.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     profile.notification = False
     profile.save()
     msg = get_message(8)
@@ -315,12 +297,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: resume_create.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     await Form.input_resume_text.set()
     msg = get_message(5)
     keyboard = create_keyboard([8])
@@ -385,12 +361,6 @@ async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMCo
 @dp.message_handler(lambda message: work_type_final.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     user_data = await state.get_data()
     print(user_data['work_type'])
     msg = get_message(10)
@@ -401,12 +371,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: employee_profile.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     msg = get_message(11)
     keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
@@ -415,12 +379,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: rating.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     msg = get_message(11)
     keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
     await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
@@ -430,12 +388,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: rating.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     msg = get_message(11)
     keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
     await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
@@ -445,12 +397,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: language.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     msg = get_message(11)
     keyboard = create_keyboard([12, 13, 14, 15, 16, 17, 8])
     await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
@@ -475,12 +421,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: contacts.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     msg = get_message(12).text
     if profile.contacts != "":
         msg = msg + f'\n\n {profile.contacts}'
@@ -494,12 +434,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: change_contacts.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     msg = get_message(14).text
     await Form.input_contacts.set()
     await bot.send_message(message.from_user.id, msg, parse_mode='Markdown')
@@ -520,12 +454,6 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
     resume = get_resume(profile)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     result = WorkTypeResume.objects.filter(resume=resume)
     if len(result) == 0:
         keyboard = create_keyboard([21, 8])
@@ -543,12 +471,6 @@ async def help_message(message: types.Message, state: FSMContext):
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
     resume = get_resume(profile)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
     result = WorkTypeResume.objects.filter(resume=resume)
     if len(result) == 0:
         keyboard = create_keyboard([21, 8])
@@ -565,12 +487,6 @@ async def help_message(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: change_category.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
-    if profile is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
-    if profile.employee is False:
-        await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
-        return
 
     msg = get_message(9).text
     kb = inline_keyboard_work()
