@@ -35,4 +35,4 @@ class ResumeAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'date')
+    list_display = ('id', 'user', 'work_type', 'date')

@@ -118,4 +118,5 @@ class WorkTypeResume(models.Model):
 class Order(models.Model):
     user = models.ForeignKey(Profile, on_delete=models.CASCADE)
     content = models.TextField()
+    work_type = models.ForeignKey(WorkType, on_delete=models.CASCADE)
     date = models.DateTimeField(auto_now=True)
