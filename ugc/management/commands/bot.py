@@ -115,6 +115,7 @@ change_category = get_button(21)
 photo = get_button(16)
 change_photo = get_button(22)
 create_order = get_button(23)
+my_resume = get_button(24)
 
 
 class Form(StatesGroup):
@@ -181,20 +182,35 @@ async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMCo
             kb.add(inline_btn)
         await bot.send_message(callback_query.from_user.id, 'Уточните...', reply_markup=kb)
         return
-    resumes = WorkTypeResume.objects.filter(work_type=obj)
+    resumes = list(WorkTypeResume.objects.filter(work_type=obj))
+
+    # Проверка на доступ к резюме
+    for i in resumes:
+        if i.resume.status is False:
+            resumes.pop(resumes.index(i))
+
+    if len(resumes) == 0:
+        msg = get_message(30)
+        await bot.send_message(callback_query.from_user.id, msg.text)
+        return
     msg = get_message(19)
     await bot.send_message(callback_query.from_user.id, msg.text)
     for i in resumes:
         final_message = i.resume.content + '\n\n\n' + i.resume.user.contacts
-        if i.resume.user.photo is None:
-            await bot.send_message(callback_query.from_user.id, final_message)
-        else:
+        print('!!!!!!!!!!!!')
+        print(type(i.resume.user.photo))
+        print('!!!!!!!!')
+        if i.resume.user.photo:
             await bot.send_photo(callback_query.from_user.id, open(i.resume.user.photo.path, 'rb'), caption=final_message,
                                  parse_mode='Markdown')
+
+        else:
+            await bot.send_message(callback_query.from_user.id, final_message)
 
 
 @dp.message_handler(lambda message: create_order.text in message.text, state="*")
 async def help_message(message: types.Message, state: FSMContext):
+    await state.finish()
     msg = get_message(26)
     kb = inline_keyboard_work(new=True)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=kb)
@@ -231,7 +247,7 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
     work_type = user_data['work_type']
     msg = get_message(28)
     await state.finish()
-    Order.objects.create(user=profile, content=message.text)
+    Order.objects.create(user=profile, content=message.text, work_type=work_type)
     keyboard = create_keyboard([3, 4, 23])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     work_type_resumes = WorkTypeResume.objects.filter(work_type=work_type)
@@ -246,7 +262,7 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
     msg = get_message(2)
-    keyboard = create_keyboard([5, 6, 7])
+    keyboard = create_keyboard([5, 6, 7, 24])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
 
 
@@ -275,7 +291,7 @@ async def help_message(message: types.Message, state: FSMContext):
     profile.save()
     msg = get_message(7)
     if profile.employee is True:
-        keyboard = create_keyboard([5, 6, 7])
+        keyboard = create_keyboard([5, 6, 7, 24])
     else:
         keyboard = create_keyboard([3, 4])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
@@ -288,10 +304,32 @@ async def help_message(message: types.Message, state: FSMContext):
     profile.save()
     msg = get_message(8)
     if profile.employee is True:
-        keyboard = create_keyboard([5, 6, 7])
+        keyboard = create_keyboard([5, 6, 7, 24])
     else:
         keyboard = create_keyboard([3, 4])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
+
+
+@dp.message_handler(lambda message: my_resume.text in message.text, state="*")
+async def help_message(message: types.Message, state: FSMContext):
+    profile = get_profile(message.from_user.id)
+    resume = get_resume(profile)
+    msg = get_message(31)
+    await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown')
+    final_message = resume.content + '\n\n\n' + resume.user.contacts
+
+    if resume.user.photo:
+        await bot.send_photo(message.from_user.id, open(resume.user.photo.path, 'rb'), caption=final_message,
+                             parse_mode='Markdown')
+
+    else:
+        await bot.send_message(message.from_user.id, final_message)
+    if resume.status is True:
+        msg = get_message(33)
+        await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown')
+    else:
+        msg = get_message(34)
+        await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown')
 
 
 @dp.message_handler(lambda message: resume_create.text in message.text, state="*")
@@ -355,7 +393,8 @@ async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMCo
     resume = get_resume(profile)
     work_type = get_work_type(work_type)
     WorkTypeResume.objects.create(work_type=work_type, resume=resume, content='')
-    await bot.send_message(callback_query.from_user.id, 'Принято', reply_markup=keyboard)
+    msg = get_message(32)
+    await bot.send_message(callback_query.from_user.id, msg.text, reply_markup=keyboard)
 
 
 @dp.message_handler(lambda message: work_type_final.text in message.text, state="*")
@@ -364,7 +403,7 @@ async def help_message(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     print(user_data['work_type'])
     msg = get_message(10)
-    keyboard = create_keyboard([5, 6, 7])
+    keyboard = create_keyboard([5, 6, 7, 24])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
 
 
