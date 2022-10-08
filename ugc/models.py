@@ -10,30 +10,21 @@ class Profile(models.Model):
     name = models.TextField(
         verbose_name='Имя пользователя'
     )
-    employee = models.BooleanField(
-        verbose_name='Работник?',
-        default=True
-    )
-
     rate = models.IntegerField(
         verbose_name='Рейтинг',
         default=0
     )
-
     notification = models.BooleanField(
         verbose_name='Оповещение',
         default=True
     )
-
     block = models.BooleanField(
         verbose_name='Блокировка',
         default=False
     )
-
     contacts = models.TextField(
         default=''
     )
-
     photo = models.ImageField(upload_to='images/', null=True, blank=True)
 
     def __str__(self):
