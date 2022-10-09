@@ -5,7 +5,7 @@ from .models import Profile, BotMessage, BotButton, Resume, WorkType, WorkTypeRe
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'external_id', 'name', 'employee')
+    list_display = ('id', 'external_id', 'name')
 
 
 @admin.register(BotMessage)
