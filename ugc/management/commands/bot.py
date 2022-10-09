@@ -96,7 +96,8 @@ token = settings.TOKEN
 bot = Bot(token=token)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-employee_list = [24, 6, 7, 5]
+employee_list = [24, 6, 7, 5, 20]
+employee_profile_list = [12, 13, 14, 15, 16, 17, 20]
 
 no_employee = get_button(1)
 employee = get_button(2)
@@ -117,6 +118,7 @@ change_contacts = get_button(18)
 category = get_button(17)
 change_category = get_button(21)
 photo = get_button(16)
+main_menu = get_button(20)
 change_photo = get_button(22)
 create_order = get_button(23)
 my_resume = get_button(24)
@@ -147,6 +149,18 @@ async def start_message(message: types.Message, state: FSMContext, **kwargs):
     return keyboard
 
 
+@dp.message_handler(lambda message: main_menu.text in message.text, state="*")
+@save_keyboard
+async def start_message(message: types.Message, state: FSMContext, **kwargs):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        Profile.objects.create(external_id=message.from_user.id, name=message.from_user.username)
+    msg = get_message(1)
+    keyboard = create_keyboard([1, 2])
+    await bot.send_message(message.from_user.id, msg.text, reply_markup=keyboard, parse_mode='Markdown')
+    return keyboard
+
+
 @dp.message_handler(lambda message: cancel.text in message.text, state="*")
 @save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
@@ -163,7 +177,7 @@ async def help_message(message: types.Message, state: FSMContext):
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
     msg = get_message(3)
-    keyboard = create_keyboard([3, 4, 23])
+    keyboard = create_keyboard([3, 4, 23, 20])
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
@@ -375,7 +389,6 @@ async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMCo
         else:
             result = user_data['work_type']
     await state.update_data(work_type=result)
-    user_data = await state.get_data()
     keyboard = create_keyboard([11])
     profile = get_profile(callback_query.from_user.id)
     resume = get_resume(profile)
@@ -400,7 +413,7 @@ async def help_message(message: types.Message, state: FSMContext):
 @save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     msg = get_message(11)
-    keyboard = create_keyboard([12, 13, 14, 15, 16, 17])
+    keyboard = create_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
@@ -409,7 +422,7 @@ async def help_message(message: types.Message, state: FSMContext):
 @save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     msg = get_message(11)
-    keyboard = create_keyboard([12, 13, 14, 15, 16, 17])
+    keyboard = create_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
                            parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
@@ -420,7 +433,7 @@ async def help_message(message: types.Message, state: FSMContext):
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
     msg = get_message(11)
-    keyboard = create_keyboard([12, 13, 14, 15, 16, 17])
+    keyboard = create_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
                            parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
@@ -434,7 +447,7 @@ async def help_message(message: types.Message, state: FSMContext):
         await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
         return
     msg = get_message(11)
-    keyboard = create_keyboard([12, 13, 14, 15, 16, 17])
+    keyboard = create_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, "На данный момемент этот раздел не доступен",
                            parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
@@ -470,7 +483,7 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile.contacts = message.text
     profile.save()
     await state.finish()
-    keyboard = create_keyboard([12, 13, 14, 15, 16, 17])
+    keyboard = create_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
@@ -546,7 +559,7 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
             return
     msg = get_message(23)
     await state.finish()
-    keyboard = create_keyboard([12, 13, 14, 15, 16, 17])
+    keyboard = create_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
