@@ -96,6 +96,7 @@ token = settings.TOKEN
 bot = Bot(token=token)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
+no_employee_list = [3, 4, 23, 20]
 employee_list = [24, 6, 7, 5, 20]
 employee_profile_list = [12, 13, 14, 15, 16, 17, 20]
 
@@ -165,19 +166,17 @@ async def start_message(message: types.Message, state: FSMContext, **kwargs):
 @save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
-    profile = get_profile(message.from_user.id)
-    print(user_data)
+    msg = get_message(35)
     keyboard = user_data['keyboard']
-    await bot.send_message(message.from_user.id, '---', reply_markup=keyboard, parse_mode='Markdown')
+    await bot.send_message(message.from_user.id, msg.text, reply_markup=keyboard, parse_mode='Markdown')
     return keyboard
 
 
 @dp.message_handler(lambda message: no_employee.text in message.text, state="*")
 @save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
-    profile = get_profile(message.from_user.id)
     msg = get_message(3)
-    keyboard = create_keyboard([3, 4, 23, 20])
+    keyboard = create_keyboard(no_employee_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
@@ -264,7 +263,7 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
     msg = get_message(28)
     await state.finish()
     Order.objects.create(user=profile, content=message.text, work_type=work_type)
-    keyboard = create_keyboard([3, 4, 23])
+    keyboard = create_keyboard(no_employee_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     work_type_resumes = WorkTypeResume.objects.filter(work_type=work_type)
     for work_type_resume in work_type_resumes:
@@ -347,7 +346,6 @@ async def help_message(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(state=Form.input_resume_text)
-@save_keyboard
 async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     resume = get_resume(profile)
@@ -366,7 +364,6 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
 
 
 @dp.callback_query_handler(lambda c: 'work_type' in c.data)
-@save_keyboard
 async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMContext):
     await state.finish()
     await bot.answer_callback_query(callback_query.id)
@@ -507,7 +504,6 @@ async def help_message(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(lambda message: change_category.text in message.text, state="*")
-@save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     profile = get_profile(message.from_user.id)
     msg = get_message(9).text
