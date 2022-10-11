@@ -119,8 +119,8 @@ bot = Bot(token=token)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 no_employee_list = [3, 4, 23, 20]
-employee_list = [24, 6, 7, 5, 20]
-employee_profile_list = [12, 13, 14, 15, 16, 17, 20]
+employee_list = [24, 6, 5, 20]
+employee_profile_list = [12, 13, 14, 15, 16, 17, 7]
 
 no_employee = get_button(1)
 employee = get_button(2)
@@ -317,7 +317,7 @@ async def help_message(message: types.Message, state: FSMContext):
     return keyboard
 
 
-@dp.message_handler(lambda message: notification_setting.text in message.text, state="*")
+@dp.callback_query_handler(lambda c: notification_setting.text in c.data)
 async def help_message(message: types.Message, state: FSMContext):
     msg = get_message(6)
     keyboard = create_keyboard([9, 10, 8])
