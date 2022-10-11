@@ -76,6 +76,16 @@ def create_keyboard(list_id: list):
     return kb
 
 
+def inline_keyboard(list_id: list):
+    kb = InlineKeyboardMarkup()
+    for button in list_id:
+        button_request = get_button(button)
+        if button_request.status is True:
+            button = InlineKeyboardButton(button_request.text, callback_data=button_request.text)
+            kb.add(button)
+    return kb
+
+
 def inline_keyboard_work(search=False, new=False):
     if search is True:
         type_work = 'search'
@@ -93,10 +103,13 @@ def inline_keyboard_work(search=False, new=False):
 
 def save_keyboard(func):
     async def wrapper(*args, **kwargs):
-        print(*args)
-        keyboard = await func(*args, **kwargs)
-        print(keyboard)
-        await kwargs['state'].update_data(keyboard=keyboard)
+        try:
+            print(*args)
+            keyboard = await func(*args, **kwargs)
+            print(keyboard)
+            await kwargs['state'].update_data(keyboard=keyboard)
+        except Exception as e:
+            print(e)
     return wrapper
 
 
@@ -160,6 +173,18 @@ async def start_message(message: types.Message, state: FSMContext, **kwargs):
 
 
 @dp.message_handler(lambda message: main_menu.text in message.text, state="*")
+@save_keyboard
+async def start_message(message: types.Message, state: FSMContext, **kwargs):
+    profile = get_profile(message.from_user.id)
+    if profile is False:
+        Profile.objects.create(external_id=message.from_user.id, name=message.from_user.username)
+    msg = get_message(1)
+    keyboard = create_keyboard([1, 2])
+    await bot.send_message(message.from_user.id, msg.text, reply_markup=keyboard, parse_mode='Markdown')
+    return keyboard
+
+
+@dp.callback_query_handler(lambda c: main_menu.text in c.data)
 @save_keyboard
 async def start_message(message: types.Message, state: FSMContext, **kwargs):
     profile = get_profile(message.from_user.id)
@@ -426,7 +451,7 @@ async def help_message(message: types.Message, state: FSMContext):
 @save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     msg = get_message(11)
-    keyboard = create_keyboard(employee_profile_list)
+    keyboard = inline_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
@@ -441,9 +466,9 @@ async def help_message(message: types.Message, state: FSMContext):
     return keyboard
 
 
-@dp.message_handler(lambda message: language.text in message.text, state="*")
+@dp.callback_query_handler(lambda c: language.text in c.data)
 @save_keyboard
-async def help_message(message: types.Message, state: FSMContext):
+async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     msg = get_message(11)
     keyboard = create_keyboard(employee_profile_list)
@@ -452,9 +477,9 @@ async def help_message(message: types.Message, state: FSMContext):
     return keyboard
 
 
-@dp.message_handler(lambda message: city.text in message.text, state="*")
+@dp.callback_query_handler(lambda c: city.text in c.data)
 @save_keyboard
-async def help_message(message: types.Message, state: FSMContext):
+async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     if profile is False:
         await bot.send_message(message.from_user.id, 'Вам это не доступно!', parse_mode='Markdown')
@@ -466,8 +491,8 @@ async def help_message(message: types.Message, state: FSMContext):
     return keyboard
 
 
-@dp.message_handler(lambda message: contacts.text in message.text, state="*")
-async def help_message(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: contacts.text in c.data)
+async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     msg = get_message(12).text
     if profile.contacts != "":
@@ -481,7 +506,6 @@ async def help_message(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(lambda message: change_contacts.text in message.text, state="*")
-@save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     msg = get_message(14).text
     await Form.input_contacts.set()
@@ -496,13 +520,13 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile.contacts = message.text
     profile.save()
     await state.finish()
-    keyboard = create_keyboard(employee_profile_list)
+    keyboard = inline_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
 
-@dp.message_handler(lambda message: category.text in message.text, state="*")
-async def help_message(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: category.text in c.data)
+async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     resume = get_resume(profile)
     result = WorkTypeResume.objects.filter(resume=resume)
@@ -530,8 +554,8 @@ async def help_message(message: types.Message, state: FSMContext):
     return keyboard
 
 
-@dp.message_handler(lambda message: photo.text in message.text, state="*")
-async def help_message(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: photo.text in c.data)
+async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     keyboard = create_keyboard([22, 8])
     if profile.photo == '':
@@ -571,7 +595,7 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
             return
     msg = get_message(23)
     await state.finish()
-    keyboard = create_keyboard(employee_profile_list)
+    keyboard = inline_keyboard(employee_profile_list)
     await bot.send_message(message.from_user.id, msg.text, parse_mode='Markdown', reply_markup=keyboard)
     return keyboard
 
