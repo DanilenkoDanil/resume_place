@@ -115,5 +115,5 @@ STATIC_ROOT = "static/"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-TOKEN = '5579624086:AAG-L8VAbl55lHmuSQ_2uhxSnstUhRxnXz8'
+TOKEN = '5592515024:AAGJgdSDC5XamRMGin0psfaXs3CHYeBIsak'
 BOT_LINK = 'https://t.me/SimpleSMMBot'
