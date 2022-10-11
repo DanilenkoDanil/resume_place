@@ -57,6 +57,15 @@ def get_resume(user: Profile):
         return result[0]
 
 
+def check_category(user: Profile, work_type: WorkType):
+    resume = Resume.objects.filter(user=user)
+    result = WorkTypeResume.objects.filter(resume=resume, work_type=work_type)
+    if len(result) == 0:
+        return False
+    else:
+        return result[0]
+
+
 def create_keyboard(list_id: list):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     for button_id in list_id:
@@ -166,6 +175,7 @@ async def start_message(message: types.Message, state: FSMContext, **kwargs):
 @save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
+    await state.finish()
     msg = get_message(35)
     keyboard = user_data['keyboard']
     await bot.send_message(message.from_user.id, msg.text, reply_markup=keyboard, parse_mode='Markdown')
@@ -347,6 +357,7 @@ async def help_message(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=Form.input_resume_text)
 async def help_message(message: types.Message, state: FSMContext, raw_state):
+    print('Input go')
     profile = get_profile(message.from_user.id)
     resume = get_resume(profile)
     if resume is False:
@@ -390,10 +401,15 @@ async def process_callback_sad(callback_query: types.CallbackQuery, state: FSMCo
     profile = get_profile(callback_query.from_user.id)
     resume = get_resume(profile)
     work_type = get_work_type(work_type)
-    WorkTypeResume.objects.create(work_type=work_type, resume=resume, content='')
-    msg = get_message(32)
-    await bot.send_message(callback_query.from_user.id, msg.text, reply_markup=keyboard)
-    return keyboard
+    if len(WorkTypeResume.objects.filter(work_type=work_type, resume=resume)) == 0:
+        WorkTypeResume.objects.create(work_type=work_type, resume=resume, content='')
+        msg = get_message(32)
+        await bot.send_message(callback_query.from_user.id, msg.text, reply_markup=keyboard)
+        return keyboard
+    else:
+        msg = get_message(36)
+        await bot.send_message(callback_query.from_user.id, msg.text, reply_markup=keyboard)
+        return keyboard
 
 
 @dp.message_handler(lambda message: work_type_final.text in message.text, state="*")
