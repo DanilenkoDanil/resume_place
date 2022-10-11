@@ -448,7 +448,6 @@ async def help_message(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(lambda message: employee_profile.text in message.text, state="*")
-@save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     msg = get_message(11)
     keyboard = inline_keyboard(employee_profile_list)
@@ -457,7 +456,6 @@ async def help_message(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(lambda message: rating.text in message.text, state="*")
-@save_keyboard
 async def help_message(message: types.Message, state: FSMContext):
     msg = get_message(11)
     keyboard = create_keyboard(employee_profile_list)
@@ -467,7 +465,6 @@ async def help_message(message: types.Message, state: FSMContext):
 
 
 @dp.callback_query_handler(lambda c: language.text in c.data)
-@save_keyboard
 async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     msg = get_message(11)
@@ -478,7 +475,6 @@ async def help_message(message: types.Message, state: FSMContext, raw_state):
 
 
 @dp.callback_query_handler(lambda c: city.text in c.data)
-@save_keyboard
 async def help_message(message: types.Message, state: FSMContext, raw_state):
     profile = get_profile(message.from_user.id)
     if profile is False:
